@@ -33,15 +33,47 @@ class TextProc:
         count_pair_list.sort(key=lambda x: x[1], reverse=True)
         
         self.count_pair_list = count_pair_list
+        self.mode = 'train'
+        self.is_trained = False
+        self.top_num = None
         
-    def mask_by_wordfreq(self, top_num):
-        selected_words = [item[0] for item in self.count_pair_list[:top_num]]
+    def trainmode(self):
+        self.mode = 'train'
         
+    def procmode(self):
+        self.mode = 'proc'
+        
+    def process(self, text_corpus=None, top_num=None):
+        if self.mode == 'train':
+            if top_num is not None:
+                self.top_num = top_num
+            if text_corpus is not None:
+                raise ValueError('If text_corpus is given, please do not use train mode. Use method procmode to change mode.')
+
+            words_collection = self.words_collection
+        else:
+            if not self.is_trained:
+                raise Exception('Function needs to be called first in train mode.')
+            
+            words_collection = [simple_proc(tmp) for tmp in text_corpus]
+            
+        if self.top_num is not None:
+            selected_words = [item[0] for item in self.count_pair_list[:self.top_num]]
+        else:
+            selected_words = [item[0] for item in self.count_pair_list]
+            
         selected_word_set = set(selected_words)
+        
+        
+        if self.mode == 'train':
+            self.is_trained = True
+        
+        if self.top_num is None:
+            return words_collection, selected_word_set
         
         masked_words_collection = []
         
-        for word_list in self.words_collection:
+        for word_list in words_collection:
             masked_word_list = []
             
             for word in word_list:
@@ -49,6 +81,5 @@ class TextProc:
                     masked_word_list.append(word)
 
             masked_words_collection.append(masked_word_list)
-
-        return masked_words_collection, selected_words
-
+            
+        return masked_words_collection, selected_word_set
