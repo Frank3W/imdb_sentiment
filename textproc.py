@@ -1,4 +1,6 @@
+import numpy as np
 import spacy
+
 
 nlp_english = spacy.load('en_core_web_sm')
 
@@ -40,15 +42,15 @@ class TextProc:
     def trainmode(self):
         self.mode = 'train'
         
-    def procmode(self):
-        self.mode = 'proc'
+    def evalmode(self):
+        self.mode = 'eval'
         
     def process(self, text_corpus=None, top_num=None):
         if self.mode == 'train':
             if top_num is not None:
                 self.top_num = top_num
             if text_corpus is not None:
-                raise ValueError('If text_corpus is given, please do not use train mode. Use method procmode to change mode.')
+                raise ValueError('If text_corpus is given, please do not use train mode. Use method evalmode to change mode.')
 
             words_collection = self.words_collection
         else:
@@ -82,4 +84,59 @@ class TextProc:
 
             masked_words_collection.append(masked_word_list)
             
-        return masked_words_collection, selected_word_set
+        return masked_words_collection, selected_words
+
+
+class WordEncoder:
+    
+    def __init__(self, word_list):
+        self.word_num = len(word_list)
+        # index 0 is reserved for word not in word_list
+        self.word_to_idx = {word : (idx+1) for idx, word in enumerate(word_list)}
+        self.idx_to_word = {(idx+1) : word for idx, word in enumerate(word_list)}
+        
+    def onehot_encode(self, words_collection):
+        """Encodes word collections to be one-hot vectors.
+        
+        Args:
+            words_collection: list of string list where each string is considered as a word
+        
+        Returns:
+            a 2d numpy array
+        """
+        num_text = len(words_collection)
+        
+        # the index zero is kept 
+        code_vecs = np.zeros((num_text, self.word_num + 1)).astype('int')
+        
+        for idx, word_list in enumerate(words_collection):
+            for word in word_list:
+                if word in self.word_to_idx:
+                    code_vecs[idx, self.word_to_idx[word]] = 1
+                else:
+                    code_vecs[idx, 0] = 0
+
+        return code_vecs
+    
+    def idx_encode(self, words_collection):
+        """Encodes word collections to be vectors of index integers.
+        
+        Args:
+            words_collection: list of string list where each string is considered as a word
+        
+        Returns:
+            a list of integer lists
+        """
+        idx_vecs = []
+        
+        for word_list in words_collection:
+            curr_idx_list = []
+            for word in word_list:
+                if word in self.word_to_idx:
+                    curr_idx_list.append(self.word_to_idx[word])
+                else:
+                    curr_idx_list.append(0)
+
+            idx_vecs.append(curr_idx_list)
+
+        return idx_vecs
