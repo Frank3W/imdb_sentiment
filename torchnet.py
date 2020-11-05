@@ -4,7 +4,6 @@ import torch
 from torch.utils.data import Dataset
 from torch.nn import functional as F
 
-## TODO: support dtype for returned data from __getitem__- float is for network input.
 class InMemTorchData(Dataset):
     """Simple pytorch dataset class for in-memory feature and label data that support __getitem__ function.
     """
@@ -21,10 +20,12 @@ class InMemTorchData(Dataset):
         return len(self.data)
     
     def __getitem__(self, i):
+        # Weights and bias of nn layers are of float32 type by default. But float numpy array is float64 by default.
+        # To be consistent, float method is invoked to convert float64 to float32.
         if self.transformer is not None:
-            return self.transformer([self.data[i]]), self.label[i], i
+            return torch.from_numpy(self.transformer([self.data[i]])).float(), self.label[i, np.newaxis], i
         else:
-            return self.data[i], np.array([self.label[i]]), i
+            return torch.from_numpy(self.data[i]).float(), self.label[i, np.newaxis], i
         
         
 class FullNet(torch.nn.Module):
