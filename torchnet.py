@@ -70,35 +70,64 @@ class FullNet(torch.nn.Module):
         
         return x
 
-def train_bclassif(model, optimizer, epoch_num, fit_dataloader, val_data, val_label):
+def train_bclassif(model, optimizer, epoch_num, fit_dataloader, val_data, val_label, metric_type='rocauc'):
+    """Trains binary classifier.
+    
+    Args:
+        model: pytorch model.
+        optimizer: optimizer over the parameters of model.
+        epoch_num: number of epoches to run.
+        fit_dataloader: torch dataloader to fit model where the return item has first element as
+            features and second element as labels in torch tensor format.
+        val_data: numpy array as features for validation data.
+        val_label: numpy array as labels for validation data.
+    
+    Returns:
+        Metric results in validation data set.
+    """
     # use GPU if exists
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    
+    # create torch tensors for validation data and labels.
+    val_data_tensor = torch.from_numpy(val_data).float()
+    val_label_tensor = torch.from_numpy(val_label).reshape((-1, 1)).float().to(device)
+    
     model = model.to(device)
 
     val_loss_list = []
-    val_rocauc_list = []
+    val_metric_list = []
 
     loss_fn = torch.nn.BCEWithLogitsLoss()
 
     for epoch in range(epoch_num):
         logger.debug(f'epoch {epoch} starts')
-        for fit_data_batch, fit_label_batch, idx_batch in fit_dataloader:
-            output = model(fit_data_batch.to(device))
+        for items in fit_dataloader:
+            fit_data_batch = items[0]
+            fit_label_batch = items[1]
+            
+            output = model(fit_data_batch.float().to(device))
             loss_output = loss_fn(output, fit_label_batch.float().to(device))
             loss_output.backward()
             optimizer.step()
             optimizer.zero_grad()
 
         with torch.no_grad():
-            val_output = model(val_data.to(device))
-            val_loss = loss_fn(val_output, torch.from_numpy(val_label).reshape((-1, 1)).float().to(device))
+            val_output = model(val_data_tensor.to(device))
+            
+            # evaluate loss function
+            val_loss = loss_fn(val_output, val_label_tensor)
             val_loss_list.append(val_loss)
 
-            val_pred_np = val_output.cpu().numpy().flatten()
+            # evaluate metrics
+            val_pred = val_output.cpu().numpy().flatten()
+            if metric_type == 'rocauc':
+                val_metric = metrics.roc_auc_score(val_label, val_pred)
+            else:
+                raise NotImplementedError('metric_type only supprots rocauc')
 
-            val_rocauc = metrics.roc_auc_score(val_label, val_pred_np)
-            val_rocauc_list.append(val_rocauc)
-            logger.debug(f'roc auc on validation {val_rocauc}')
+            val_metric_list.append(val_metric)
+            
+            logger.debug(f'Metric {metric_type} on validation {val_metric}')
             logger.debug(f'loss on validation {val_loss}')
         
-    return val_loss_list, val_rocauc_list
+    return val_loss_list, val_metric_list
