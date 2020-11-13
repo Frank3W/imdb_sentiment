@@ -18,8 +18,8 @@ class InMemTorchData(Dataset):
 
         if transformer is not None and not callable(transformer):
             raise ValueError('Transformer {} must be callable if not None.'.format(transformer))
-        else:
-            self.transformer = transformer
+        
+        self.transformer = transformer
                 
     def __len__(self):
         return len(self.data)
@@ -70,6 +70,64 @@ class FullNet(torch.nn.Module):
         
         return x
 
+    
+def get_model_device(model):
+    """Returns pytorch model device.
+    
+    It requires model have non-empty parameters.
+    """
+    return next(model.parameters()).device
+
+def eval_model(model, data, label, metric_type='rocauc', loss_func=None):
+    """Evaluate pytorch model.
+    
+    If loss_func is None, the returned loss_value will be None.
+    
+    Args:
+        model: pytorch model.
+        data: numpy array as features.
+        label: numpy array as labels.
+        loss_func: pytorch loss tensor function takes model output and label tensor as inputs.
+        metric_type: A string giving metric type; currently only support rocauc.
+
+    Returns:
+        (metric_value, loss_value)
+    """
+    if model.training:
+        is_train_mode = True
+    else:
+        is_train_mode = False
+        
+    device = get_model_device(model)
+    
+    # create torch tensors for data and labels.
+    data_tensor = torch.from_numpy(data).float().to(device)
+    label_tensor = torch.from_numpy(label).reshape((-1, 1)).float().to(device)
+
+    with torch.no_grad():
+        model.eval()
+        try:
+            output = model(data_tensor)
+        finally:
+            # restore model mode
+            if is_train_mode:
+                model.train()
+        
+        # evaluate loss function
+        if loss_func is not None:
+            loss = loss_func(output, label_tensor)
+        else:
+            loss = None
+
+        # evaluate metrics
+        output_numpy = output.cpu().numpy().flatten()
+        if metric_type == 'rocauc':
+            metric_val = metrics.roc_auc_score(label, output_numpy)
+        else:
+            raise NotImplementedError('metric_type only supprots rocauc')
+        
+        return metric_val, loss.cpu().numpy().item()
+
 def train_bclassif(model, optimizer, epoch_num, fit_dataloader, val_data, val_label, metric_type='rocauc'):
     """Trains binary classifier.
     
@@ -81,53 +139,46 @@ def train_bclassif(model, optimizer, epoch_num, fit_dataloader, val_data, val_la
             features and second element as labels in torch tensor format.
         val_data: numpy array as features for validation data.
         val_label: numpy array as labels for validation data.
+        metric_type: A string giving metric type; currently only support rocauc.
     
     Returns:
         Metric results in validation data set.
     """
     # use GPU if exists
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    
+        
+    model = model.to(device)
+    loss_func = torch.nn.BCEWithLogitsLoss()
+
     # create torch tensors for validation data and labels.
     val_data_tensor = torch.from_numpy(val_data).float()
     val_label_tensor = torch.from_numpy(val_label).reshape((-1, 1)).float().to(device)
-    
-    model = model.to(device)
 
     val_loss_list = []
     val_metric_list = []
 
-    loss_fn = torch.nn.BCEWithLogitsLoss()
-
     for epoch in range(epoch_num):
-        logger.debug(f'epoch {epoch} starts')
+        logger.debug(f'Epoch {epoch} starts')
+        
+        # switch train mode on
+        model.train()
+        
         for items in fit_dataloader:
             fit_data_batch = items[0]
             fit_label_batch = items[1]
             
+            # fit model in one optimization step
+            optimizer.zero_grad()
             output = model(fit_data_batch.float().to(device))
-            loss_output = loss_fn(output, fit_label_batch.float().to(device))
+            loss_output = loss_func(output, fit_label_batch.float().to(device))
             loss_output.backward()
             optimizer.step()
-            optimizer.zero_grad()
-
-        with torch.no_grad():
-            val_output = model(val_data_tensor.to(device))
             
-            # evaluate loss function
-            val_loss = loss_fn(val_output, val_label_tensor)
-            val_loss_list.append(val_loss)
-
-            # evaluate metrics
-            val_pred = val_output.cpu().numpy().flatten()
-            if metric_type == 'rocauc':
-                val_metric = metrics.roc_auc_score(val_label, val_pred)
-            else:
-                raise NotImplementedError('metric_type only supprots rocauc')
-
-            val_metric_list.append(val_metric)
-            
-            logger.debug(f'Metric {metric_type} on validation {val_metric}')
-            logger.debug(f'loss on validation {val_loss}')
+        # evaluate model performance on validation set
+        val_metric, val_loss = eval_model(model, val_data, val_label, metric_type=metric_type, loss_func=loss_func)
+        val_loss_list.append(val_loss)
+        val_metric_list.append(val_metric)
+        logger.debug(f'Metric {metric_type} on validation {val_metric}')
+        logger.debug(f'loss on validation {val_loss}')
         
-    return val_loss_list, val_metric_list
+    return val_metric_list, val_loss_list
