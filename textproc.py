@@ -1,5 +1,6 @@
 import numpy as np
 import spacy
+import json
 
 
 nlp_english = spacy.load('en_core_web_sm')
@@ -14,30 +15,60 @@ def simple_proc(text):
 
 class TextProc:
 
-    def __init__(self, text_corpus):
+    def __init__(self, text_corpus=None, ordered_count_pairs=None, top_num=None):
         
-        words_collection = [simple_proc(tmp) for tmp in text_corpus]
-        
-        self.words_collection = words_collection
-        
-        word_count_dict = {}
-        for word_list in words_collection:
-            for word in word_list:
-                if word in word_count_dict:
-                    word_count_dict[word] += 1
-                else:
-                    word_count_dict[word] = 1
-        
+        if text_corpus is not None:
+            words_collection = [simple_proc(tmp) for tmp in text_corpus]
+
+            self.words_collection = words_collection
+
+            word_count_dict = {}
+            for word_list in words_collection:
+                for word in word_list:
+                    if word in word_count_dict:
+                        word_count_dict[word] += 1
+                    else:
+                        word_count_dict[word] = 1
+
+            count_pair_list = []
+            for key, value in word_count_dict.items():
+                count_pair_list.append((key, value))
+
+            count_pair_list.sort(key=lambda x: x[1], reverse=True)
+
+            self.count_pair_list = count_pair_list
+            self.mode = 'train'
+            self.is_trained = False
+            self.top_num = None
+        else:
+            self.words_collection = None
+            self.count_pair_list = ordered_count_pairs
+            self.mode = 'eval'
+            self.is_trained = True
+            self.top_num = top_num
+
+
+    @classmethod
+    def from_load_wcount_pair(cls, path):
+        with open(path, 'r') as infile:
+            data_dict = json.load(infile)
+
         count_pair_list = []
-        for key, value in word_count_dict.items():
+        for key, value in data_dict['wordcount'].items():
             count_pair_list.append((key, value))
-            
+
         count_pair_list.sort(key=lambda x: x[1], reverse=True)
         
-        self.count_pair_list = count_pair_list
-        self.mode = 'train'
-        self.is_trained = False
-        self.top_num = None
+        return cls(ordered_count_pairs=count_pair_list, top_num=data_dict['top_num'])
+        
+        
+    def save_wcount(self, path):
+        data_dict = {}
+        count_dict = {_[0] : _[1] for _ in self.count_pair_list}
+        data_dict['top_num'] = self.top_num
+        data_dict['wordcount'] = count_dict
+        with open(path, 'w') as outfile:
+            json.dump(data_dict, outfile)
         
     def trainmode(self):
         self.mode = 'train'

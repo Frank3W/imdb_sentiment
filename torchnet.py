@@ -69,6 +69,12 @@ class FullNet(torch.nn.Module):
         x = self.layers[-1](x)
         
         return x
+    
+    def save_model_weights(self, path):
+        torch.save(self.state_dict(), path)
+        
+    def load_model_weights(self, path):
+        self.load_state_dict(torch.load(path))
 
     
 def get_model_device(model):
@@ -87,12 +93,16 @@ def eval_model(model, data, label, metric_type='rocauc', loss_func=None):
         model: pytorch model.
         data: numpy array as features.
         label: numpy array as labels.
-        loss_func: pytorch loss tensor function takes model output and label tensor as inputs.
         metric_type: A string giving metric type; currently only support rocauc.
+        loss_func: pytorch loss tensor function takes model output and label tensor as inputs.
 
     Returns:
         (metric_value, loss_value)
     """
+    
+    data = np.array(data)
+    label = np.array(label)
+    
     if model.training:
         is_train_mode = True
     else:
@@ -126,7 +136,10 @@ def eval_model(model, data, label, metric_type='rocauc', loss_func=None):
         else:
             raise NotImplementedError('metric_type only supprots rocauc')
         
-        return metric_val, loss.cpu().numpy().item()
+        if loss is not None:
+            return metric_val, loss.cpu().numpy().item()
+        else:
+            return metric_val, None
 
 def train_bclassif(model, optimizer, epoch_num, fit_dataloader, val_data, val_label, metric_type='rocauc'):
     """Trains binary classifier.
