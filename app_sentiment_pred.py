@@ -1,4 +1,6 @@
 import json
+import sqlite3
+import datetime
 
 import flask
 from flask import Flask, render_template, url_for
@@ -18,11 +20,34 @@ fullnet = torchnet.FullNet('relu', loaded_textproc.top_num+1, 12, 8, 1)
 fullnet.load_model_weights('imdb_fullnet.pt')
 fullnet = fullnet.eval()
 
+# create sqlite database to record queries.
+DB_FNAME = 'app_sentiment_records.db'
+conn = sqlite3.connect(DB_FNAME)
+
+sql_create_record_table = """ CREATE TABLE IF NOT EXISTS query_records (
+                                    time text NOT NULL,
+                                    query text,
+                                    sentiment_score text
+                                ); """
+
+cursor = conn.cursor()
+cursor.execute(sql_create_record_table)
+conn.close()
+
+def insert_record(conn, time_str, query_str, sentiment_score_str):
+
+    sql = ''' INSERT INTO query_records(time, query, sentiment_score)
+              VALUES(?,?,?) '''
+    cur = conn.cursor()
+    cur.execute(sql, (time_str, query_str, sentiment_score_str))
+    conn.commit()
+    return True
+
 
 @app.route('/text', methods=['POST'])
 def sentiment_pred():
-    review_text = request.form['text']
-    review_text = [review_text]
+    raw_text = request.form['text']
+    review_text = [raw_text]
     
     # process text
     review_text_processed, selected_word = loaded_textproc.process(text_corpus=review_text)
@@ -38,7 +63,11 @@ def sentiment_pred():
     r_dict = {}
     pos_pct = "{:.2%}".format(sentiment_score[0][0])
     r_dict['pos_pct'] = pos_pct
-    print(r_dict)
+    
+    # insert record in database
+    with sqlite3.connect(DB_FNAME) as conn:
+        insert_record(conn, str(datetime.datetime.now()), raw_text, pos_pct)
+    
     response = app.response_class(
         response=json.dumps(r_dict),
         status=200,

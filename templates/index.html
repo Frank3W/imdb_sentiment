@@ -11,25 +11,20 @@
         
         <script>
             $(document).ready(function(){
-              $("#submit_button").click(function(){
-                  $.post('/text',
-                         {text: $("#review_text").val()},
-                         function(data, status){
-                            $("#score").text('Score: ' + data['pos_pct']);
-                         });
-                  return false;
-              });
+                $("#submit_button").click(function(){
+                    $.post('/text',
+                           {text: $("#review_text").val()},
+                           function(data, status){$("#score").text('Score: ' + data['pos_pct']);}
+                          );
+                });
             });
         </script>
     </head>
     
     <body>
-        <form>
-            <textarea id='review_text'>movie is perfect!</textarea>
-            <button type="submit" class="btn btn-primary" id="submit_button">Submit</button>
-        </form>
+        <textarea id='review_text'>movie is perfect!</textarea>
+        <button type="submit" class="btn btn-primary" id="submit_button">Submit</button>
         <p id="score">Score: </p>
-        
     </body>
 
 </html>
