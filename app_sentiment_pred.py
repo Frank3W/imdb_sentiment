@@ -10,18 +10,20 @@ import torch
 import textproc
 import torchnet
 
-app = Flask(__name__)
+# constants
+PROC_JSON = './savedmodels/fullnet/text_proc.json'
+MODEL_PT = './savedmodels/fullnet/imdb_fullnet.pt'
+DB_FNAME = 'app_sentiment_records.db'
 
 # load process step
-loaded_textproc = textproc.TextProc.from_load_wcount_pair('text_proc.json')
+loaded_textproc = textproc.TextProc.from_load_wcount_pair(PROC_JSON)
 
 # load trained model
-fullnet = torchnet.FullNet('relu', loaded_textproc.top_num+1, 12, 8, 1)
-fullnet.load_model_weights('imdb_fullnet.pt')
-fullnet = fullnet.eval()
+model = torchnet.FullNet('relu', loaded_textproc.top_num+1, 12, 8, 1)
+model.load_model_weights(MODEL_PT)
+model = model.eval()
 
 # create sqlite database to record queries.
-DB_FNAME = 'app_sentiment_records.db'
 conn = sqlite3.connect(DB_FNAME)
 
 sql_create_record_table = """ CREATE TABLE IF NOT EXISTS query_records (
@@ -33,6 +35,9 @@ sql_create_record_table = """ CREATE TABLE IF NOT EXISTS query_records (
 cursor = conn.cursor()
 cursor.execute(sql_create_record_table)
 conn.close()
+
+# create flask app
+app = Flask(__name__)
 
 def insert_record(conn, time_str, query_str, sentiment_score_str):
 
@@ -53,11 +58,11 @@ def sentiment_pred():
     review_text_processed, selected_word = loaded_textproc.process(text_corpus=review_text)
     word_encoder = textproc.WordEncoder(selected_word)
     review_text_encoded = word_encoder.onehot_encode(review_text_processed)
-    review_text_tensor = torch.from_numpy(review_text_encoded).float().to(torchnet.get_model_device(fullnet))
+    review_text_tensor = torch.from_numpy(review_text_encoded).float().to(torchnet.get_model_device(model))
     
     # get prediction
     with torch.no_grad():
-        sentiment_score = torch.sigmoid(fullnet(review_text_tensor)).cpu().numpy()
+        sentiment_score = model.prediction(review_text_tensor).cpu().numpy()
         
     # return positivity percentage as json response
     r_dict = {}

@@ -70,6 +70,11 @@ class FullNet(torch.nn.Module):
         
         return x
     
+    def prediction(self, x):
+        """Generates model prediciton.
+        """
+        return torch.sigmoid(self(x))
+    
     def save_model_weights(self, path):
         torch.save(self.state_dict(), path)
         
