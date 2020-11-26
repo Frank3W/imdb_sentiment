@@ -5,7 +5,16 @@ import json
 
 nlp_english = spacy.load('en_core_web_sm')
 
+
 def simple_proc(text):
+    """Applies a simple processing step to text.
+    
+    Args:
+        text (str): a paragraph text
+    
+    Returns:
+        list: tokens
+    """
     r_list = []
     for token in nlp_english(text):
         if token.is_alpha and not token.is_stop:
@@ -14,9 +23,34 @@ def simple_proc(text):
 
 
 class TextProc:
-
+    """Text processing.
+    
+    It has two modes: training mode and evaluation mode.
+    
+    Attributes:
+        count_pair_list (list of tuple): the tuple has 2 elements word string and frequency count.
+            The list is sorted in the descending order by frequency count.
+        words_collection (list of list): the inner list is of tokens.
+        mode (str): value of 'train' or 'eval' that gives the mode.
+        is_trained (bool): whether the text processing object is trained or not.
+        top_num (int, optional): number of top words in count_pair_list used in processing. If None, all words
+            are used.
+    
+    """
     def __init__(self, text_corpus=None, ordered_count_pairs=None, top_num=None):
+        """Inits an text processing object.
         
+        Either text_corpus is provided or ordered_count_pairs and top_num are provided.
+        The first case creates an object in training mode and the second case creates
+        an object in evaluation mode.
+        
+        text_corpus (list of str, optional): text collection
+        ordered_count_pairs (list of tuple, optional): the tuple has 2 elements word string and frequency count.
+            The list is sorted in the descending order by frequency count.
+        top_num (int, optional): number of top words in count_pair_list used in processing. If None, all words
+            are used.
+
+        """
         if text_corpus is not None:
             words_collection = [simple_proc(tmp) for tmp in text_corpus]
 
@@ -47,9 +81,12 @@ class TextProc:
             self.is_trained = True
             self.top_num = top_num
 
-
     @classmethod
     def from_load_wcount_pair(cls, path):
+        """Loads json word count data to initialize a text processing object.
+        
+        It is the loading function that corresponds to persistence function save_wcount.
+        """
         with open(path, 'r') as infile:
             data_dict = json.load(infile)
 
@@ -61,8 +98,8 @@ class TextProc:
         
         return cls(ordered_count_pairs=count_pair_list, top_num=data_dict['top_num'])
         
-        
     def save_wcount(self, path):
+        """Saves word count info into json for persisting trained text processing object."""
         data_dict = {}
         count_dict = {_[0] : _[1] for _ in self.count_pair_list}
         data_dict['top_num'] = self.top_num
@@ -71,15 +108,27 @@ class TextProc:
             json.dump(data_dict, outfile)
         
     def trainmode(self):
+        """Switches to training mode"""
         self.mode = 'train'
         
     def evalmode(self):
+        """Switches to evaluation mode"""
         self.mode = 'eval'
         
     def process(self, text_corpus=None, top_num=None):
+        """Processes data.
+        
+        It behaves differently in two different modes: 'train' and 'eval'. When self is in mode 'train',
+        text_corpus must be None and only top_num applies. When self is in mode 'test', text_corpus must
+        be not None and top_num not applies.
+
+        text_corpus (list of str, optional): text collection
+        top_num (int, optional): number of top words in count_pair_list used in processing. If None, all words
+            are used.
+        
+        """
         if self.mode == 'train':
-            if top_num is not None:
-                self.top_num = top_num
+            self.top_num = top_num
             if text_corpus is not None:
                 raise ValueError('If text_corpus is given, please do not use train mode. Use method evalmode to change mode.')
 
@@ -96,7 +145,6 @@ class TextProc:
             selected_words = [item[0] for item in self.count_pair_list]
             
         selected_word_set = set(selected_words)
-        
         
         if self.mode == 'train':
             self.is_trained = True

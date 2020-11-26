@@ -1,12 +1,26 @@
+"""Module for IMDB data fetching and loading 
+"""
+
 import requests
 import os
 import logging
 import shutil
 
+
 logger = logging.getLogger(__name__)
+
 
 def download_imdb_data():
     """Download imdb raw data.
+    
+    The data will be saved into the .imdb_data folder under current working directory. If .imdb_data
+    folder already exists, no download occurs.
+    
+    Returns: 
+        tuple:
+            bool: whether download occurs
+            string: folder path
+
     """
     data_url = "https://ai.stanford.edu/~amaas/data/sentiment/aclImdb_v1.tar.gz"
     data_folder = '.imdb_data'
@@ -40,7 +54,12 @@ def get_imdb_raw():
     """Gets IMDB raw data.
     
     Returns:
-        A tuple (train_data, train_label, test_data, test_label)
+        tuple:
+            list: feature data for training
+            list: label data for training
+            list: feature data for testing
+            list: label data for testing
+    
     """
     downloaded, foldername = download_imdb_data()
     
@@ -91,4 +110,3 @@ def get_imdb_raw():
         curr_label.extend([label_val] * len(rev_list))
         
     return train_data, train_label, test_data, test_label
-
