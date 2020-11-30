@@ -1,3 +1,7 @@
+"""
+Module for text processing.
+"""
+
 import numpy as np
 import spacy
 import json
@@ -85,7 +89,8 @@ class TextProc:
     def from_load_wcount_pair(cls, path):
         """Loads json word count data to initialize a text processing object.
         
-        It is the loading function that corresponds to persistence function save_wcount.
+        It is the loading function that corresponds to persistence function save_wcount. The json
+        has two keys: wordcount, top_num
         """
         with open(path, 'r') as infile:
             data_dict = json.load(infile)
@@ -125,6 +130,11 @@ class TextProc:
         text_corpus (list of str, optional): text collection
         top_num (int, optional): number of top words in count_pair_list used in processing. If None, all words
             are used.
+            
+        Returns:
+            tuple:
+                list of str lists: processed word collections
+                list of strs: word vocabulary
         
         """
         if self.mode == 'train':
@@ -164,70 +174,3 @@ class TextProc:
             masked_words_collection.append(masked_word_list)
             
         return masked_words_collection, selected_words
-
-
-class WordEncoder:
-    
-    def __init__(self, word_list):
-        self.word_num = len(word_list)
-        # index 0 is reserved for word not in word_list
-        self.word_to_idx = {word : (idx+1) for idx, word in enumerate(word_list)}
-        self.idx_to_word = {(idx+1) : word for idx, word in enumerate(word_list)}
-        
-    def onehot_encode(self, words_collection):
-        """Encodes word collections to be one-hot vectors.
-        
-        Args:
-            words_collection: list of string list where each string is considered as a word
-        
-        Returns:
-            a 2d numpy array
-        """
-        num_text = len(words_collection)
-        
-        # the index zero is kept 
-        code_vecs = np.zeros((num_text, self.word_num + 1)).astype('int')
-        
-        for idx, word_list in enumerate(words_collection):
-            for word in word_list:
-                if word in self.word_to_idx:
-                    code_vecs[idx, self.word_to_idx[word]] = 1
-                else:
-                    code_vecs[idx, 0] = 0
-
-        return code_vecs
-    
-    def idx_encode(self, words_collection):
-        """Encodes word collections to be vectors of index integers.
-        
-        Args:
-            words_collection: list of string list where each string is considered as a word
-        
-        Returns:
-            a list of integer lists
-        """
-        idx_vecs = []
-        
-        for word_list in words_collection:
-            curr_idx_list = []
-            for word in word_list:
-                if word in self.word_to_idx:
-                    curr_idx_list.append(self.word_to_idx[word])
-                else:
-                    curr_idx_list.append(0)
-
-            idx_vecs.append(curr_idx_list)
-
-        return idx_vecs
-
-
-def random_split(data, labels, ratio=0.7):
-    # convert to numpy array if not
-    data = np.array(data)
-    labels = np.array(labels)
-    
-    data1_num = int(data.shape[0] * ratio)
-    data1_idx = np.random.choice(range(data.shape[0]), size=data1_num, replace=False)
-    data2_idx = [i for i in range(data.shape[0]) if i not in data1_idx]
-    
-    return data[data1_idx], labels[data1_idx], data[data2_idx], labels[data2_idx]
