@@ -1,0 +1,7 @@
+# all dot files and folders but not .gitignore
+**/.*
+!/.gitignore
+
+# all files and folders with name __pycache__
+**/__pycache__
+
