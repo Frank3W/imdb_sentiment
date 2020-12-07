@@ -1,31 +1,41 @@
+"""Flask app for IMDB sentiment prediction.
+"""
+
 import json
+import os
 import sqlite3
 import datetime
 
-import flask
-from flask import Flask, render_template, url_for
+from flask import Flask, render_template
 from flask import request
 import torch
 
 import textproc
+import textencoder
 import torchnet
 
-# constants
-PROC_JSON = './savedmodels/fullnet/text_proc.json'
-MODEL_PT = './savedmodels/fullnet/imdb_fullnet.pt'
-DB_FNAME = 'app_sentiment_records.db'
+
+############ Text Process and Model ##############
+# paths for process and model
+MODEL_PATH = './savedspace/torchfullnet'
+PROC_JSON = os.path.join(MODEL_PATH, 'textproc.json')
+MODEL_TOPOLOGY = os.path.join(MODEL_PATH, 'imdb_fullnet_topology.json')
+MODEL_WEIGHTS = os.path.join(MODEL_PATH, 'imdb_fullnet_weights.pt')
 
 # load process step
 loaded_textproc = textproc.TextProc.from_load_wcount_pair(PROC_JSON)
 
 # load trained model
-model = torchnet.FullNet('relu', loaded_textproc.top_num+1, 12, 8, 1)
-model.load_model_weights(MODEL_PT)
+model = torchnet.FullNet.from_modeltopology(MODEL_TOPOLOGY)
+model.load_model_weights(MODEL_WEIGHTS)
 model = model.eval()
+
+
+############ database for inqueries ##############
+DB_FNAME = 'app_sentiment_records.db'
 
 # create sqlite database to record queries.
 conn = sqlite3.connect(DB_FNAME)
-
 sql_create_record_table = """ CREATE TABLE IF NOT EXISTS query_records (
                                     time text NOT NULL,
                                     query text,
@@ -36,18 +46,9 @@ cursor = conn.cursor()
 cursor.execute(sql_create_record_table)
 conn.close()
 
-# create flask app
+
+############ flask app ##############
 app = Flask(__name__)
-
-def insert_record(conn, time_str, query_str, sentiment_score_str):
-
-    sql = ''' INSERT INTO query_records(time, query, sentiment_score)
-              VALUES(?,?,?) '''
-    cur = conn.cursor()
-    cur.execute(sql, (time_str, query_str, sentiment_score_str))
-    conn.commit()
-    return True
-
 
 @app.route('/text', methods=['POST'])
 def sentiment_pred():
@@ -56,13 +57,12 @@ def sentiment_pred():
     
     # process text
     review_text_processed, selected_word = loaded_textproc.process(text_corpus=review_text)
-    word_encoder = textproc.WordEncoder(selected_word)
-    review_text_encoded = word_encoder.onehot_encode(review_text_processed)
-    review_text_tensor = torch.from_numpy(review_text_encoded).float().to(torchnet.get_model_device(model))
+    word_encoder = textencoder.OneHotEncoder(selected_word)
+    review_text_encoded = word_encoder.encode(review_text_processed)
     
     # get prediction
     with torch.no_grad():
-        sentiment_score = model.prediction(review_text_tensor).cpu().numpy()
+        sentiment_score = model.prediction(review_text_encoded).cpu().numpy()
         
     # return positivity percentage as json response
     r_dict = {}
@@ -83,8 +83,18 @@ def sentiment_pred():
 
 @app.route("/")
 def index():
-    print(url_for('sentiment_pred'))
     return render_template("index.html")
+
+
+############ helpers ##############
+def insert_record(conn, time_str, query_str, sentiment_score_str):
+
+    sql = ''' INSERT INTO query_records(time, query, sentiment_score)
+              VALUES(?,?,?) '''
+    cur = conn.cursor()
+    cur.execute(sql, (time_str, query_str, sentiment_score_str))
+    conn.commit()
+    return True
 
 
 if __name__ == "__main__":
