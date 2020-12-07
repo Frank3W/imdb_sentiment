@@ -133,7 +133,13 @@ class FullNet(torch.nn.Module):
     def prediction(self, x):
         """Generates model prediciton.
         """
-        return torch.sigmoid(self(x))
+        if torch.is_tensor(x):
+            x = x.float().to(get_model_device(self))
+            return torch.sigmoid(self(x))
+        else:
+            x = np.array(x)
+            x_tensor = torch.from_numpy(x).float().to(get_model_device(self))
+            return torch.sigmoid(self(x_tensor))
 
     def save_modeltopology(self, path):
         """Saves model topology into a json file.
@@ -166,7 +172,7 @@ class FullNet(torch.nn.Module):
         """Loads model weights.
 
         Args:
-            path: str giving input file.
+            path: str giving input file path.
         """
         self.load_state_dict(torch.load(path))
 
@@ -175,6 +181,12 @@ def get_model_device(model):
     """Returns pytorch model device.
 
     It requires model have non-empty parameters.
+
+    Args:
+        model: pytorch model
+
+    Returns:
+        torch.device
     """
     return next(model.parameters()).device
 
@@ -185,8 +197,8 @@ def eval_model(model, data, label, metric_type='rocauc', loss_func=None):
 
     Args:
         model: pytorch model.
-        data: numpy array as features.
-        label: numpy array as labels.
+        data: 2-dim numpy array-like.
+        label: 1-dim numpy array-like.
         metric_type: A string giving metric type; currently only support rocauc.
         loss_func: pytorch loss tensor function takes model output and label tensor as inputs.
 
@@ -237,17 +249,19 @@ def eval_model(model, data, label, metric_type='rocauc', loss_func=None):
 
 
 def train_bclassif(model, optimizer, epoch_num, fit_dataloader, val_data, val_label, metric_type='rocauc'):
-    """Trains binary classifier.
+    """Trains binary classifier in epochs.
+
+    If GPU exists, model will be trained on GPU.
 
     Args:
         model: pytorch model.
         optimizer: optimizer over the parameters of model.
         epoch_num: number of epoches to run.
-        fit_dataloader: torch dataloader to fit model where the return item has first element as
+        fit_dataloader: torch dataloader to fit model where the iterator item has first element as
             features and second element as labels in torch tensor format.
-        val_data: numpy array as features for validation data.
-        val_label: numpy array as labels for validation data.
-        metric_type: A string giving metric type; currently only support rocauc.
+        val_data: 2-dim numpy array as features for validation data.
+        val_label: 1-dim numpy array as labels for validation data.
+        metric_type: A string giving metric type for evaluation; currently only support rocauc.
 
     Returns:
         Metric results in validation data set.
@@ -283,7 +297,7 @@ def train_bclassif(model, optimizer, epoch_num, fit_dataloader, val_data, val_la
                                         metric_type=metric_type, loss_func=loss_func)
         val_loss_list.append(val_loss)
         val_metric_list.append(val_metric)
-        logger.debug(f'Metric {metric_type} on validation {val_metric}')
-        logger.debug(f'loss on validation {val_loss}')
+        logger.debug(f'Metric {metric_type} on validation: {val_metric}')
+        logger.debug(f'loss on validation: {val_loss}')
 
     return val_metric_list, val_loss_list
