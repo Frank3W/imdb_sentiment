@@ -1,0 +1,5 @@
+spacy==2.3.2
+numpy==1.19.1
+torch==1.6.0
+Flask==1.1.2
+scikit_learn==0.23.2
