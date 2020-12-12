@@ -8,7 +8,7 @@ Specifically, the pipeline is composed of the following steps:
 2. Process text - [textproc.py](src/textproc.py)
 3. Encode text into numeric arrays - [imdbdata.py](src/imdbdata.py)
 4. Build Pytorch model - [torchnet.py](src/torchnet.py)
-5. Serve trained NLP model as a post API via Flask - [app_sentiment_pred.py](flask_app_sentiment.py)
+5. Serve trained NLP model as a post API via Flask - [flask_app_sentiment.py](flask_app_sentiment.py)
 6. Simple front web with submission form connected to the post API via JQuery Ajax - [index.html](templates/index.html)
 
 The first 3 steps are on data fetching and processing, the step 4 is on model building, and the last 2 steps are on model deployment. It demos the classic 3 main components in a data science pipeline:
