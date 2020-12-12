@@ -10,9 +10,9 @@ from flask import Flask, render_template
 from flask import request
 import torch
 
-import textproc
-import textencoder
-import torchnet
+from src import textproc
+from src import textencoder
+from src import torchnet
 
 
 ############ Text Process and Model ##############
