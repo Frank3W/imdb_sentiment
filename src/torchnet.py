@@ -174,7 +174,15 @@ class FullNet(torch.nn.Module):
         Args:
             path: str giving input file path.
         """
-        self.load_state_dict(torch.load(path))
+
+        # torch.save will keep the device mode, but loading requires adjustment 
+        # on device type.
+        if torch.cuda.is_available():
+            map_location = torch.device('cuda')
+        else:
+            map_location = torch.device('cpu')
+
+        self.load_state_dict(torch.load(str(path), map_location=map_location))
 
 
 def get_model_device(model):
